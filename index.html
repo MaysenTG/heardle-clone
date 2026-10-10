@@ -3,6 +3,7 @@
 <body>
 <header class="top"><button class="icon" id="helpBtn" aria-label="How to play">?</button><h1>Heardle <span>Clone</span></h1><button class="icon" id="statsBtn" aria-label="Stats">▮▮</button></header>
 <main id="app">
+  <p id="mode" class="mode" hidden>Practice mode. Play as many songs as you like. Stats are not saved. <a href="./">Back to daily</a></p>
   <ol id="board" class="board" aria-label="Your guesses"></ol>
   <div id="game">
     <div class="player">
@@ -18,6 +19,7 @@
     </div>
     <div class="actions"><button id="skip" class="btn ghost">Skip (+1s)</button><button id="submit" class="btn primary" disabled>Submit</button></div>
   </div>
+  <button id="newSong" class="btn primary wide newsong" hidden>New song</button>
   <section id="end" class="end" hidden aria-live="polite"></section>
   <p id="status" class="sr" aria-live="polite"></p>
 </main>

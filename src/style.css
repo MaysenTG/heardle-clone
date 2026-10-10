@@ -56,3 +56,6 @@ dialog{max-width:420px;width:calc(100% - 32px);background:var(--card);color:var(
 dialog::backdrop{background:rgba(0,0,0,.7)}dialog h2{margin:0 0 12px}
 .steps{list-style:none;padding:0;margin:0 0 18px;display:grid;gap:12px}.steps li{display:flex;gap:12px;align-items:flex-start}.steps b{display:grid;place-items:center;flex:none;width:30px;height:30px;border-radius:50%;background:#2c2c38;color:var(--accent2)}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+.mode{background:#2a1a22;border:1px solid #5a2a3a;border-radius:10px;padding:10px 12px;font-size:14px;margin:0 0 14px;text-align:center}
+.newsong{margin:0 0 16px;background:var(--accent);color:#fff}
+[hidden]{display:none!important}

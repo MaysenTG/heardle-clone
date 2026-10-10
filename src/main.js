@@ -6,13 +6,16 @@ const start = Date.UTC(2026, 9, 10)
 const now = new Date()
 const dayNum = Math.floor((Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()) - start) / 864e5)
 const today = 'd' + dayNum
-const trackId = TRACKS[((dayNum % TRACKS.length) + TRACKS.length) % TRACKS.length]
-let state = JSON.parse(localStorage.getItem('hc-' + today) || '{"guesses":[],"done":false,"won":false}')
+const params = new URLSearchParams(location.search)
+const PRACTICE = params.has('practice') || params.has('unlimited')
+let trackId = TRACKS[((dayNum % TRACKS.length) + TRACKS.length) % TRACKS.length]
+const fresh = () => ({ guesses: [], done: false, won: false })
+let state = PRACTICE ? fresh() : JSON.parse(localStorage.getItem('hc-' + today) || 'null') || fresh()
 let stats = JSON.parse(localStorage.getItem('hc-stats') || '{"played":0,"wins":0,"streak":0,"best":0,"last":null,"dist":[0,0,0,0,0,0]}')
 stats.dist ||= [0, 0, 0, 0, 0, 0]
 let track = null, picked = null, raf = null, results = [], active = -1
 const audio = new Audio(); audio.preload = 'auto'
-const save = () => localStorage.setItem('hc-' + today, JSON.stringify(state))
+const save = () => PRACTICE || localStorage.setItem('hc-' + today, JSON.stringify(state))
 const say = m => { $('status').textContent = m }
 const unlocked = () => state.done ? 16 : STEPS[Math.min(state.guesses.length, 5)]
 
@@ -21,8 +24,12 @@ const seg = $('seg')
 seg.innerHTML = STEPS.map((s, i) => `<div class="s" style="flex:${s - (STEPS[i - 1] || 0)}"><i></i></div>`).join('')
 
 async function load() {
-  const r = await fetch(`https://itunes.apple.com/lookup?id=${trackId}&country=nz`)
-  track = (await r.json()).results[0]
+  const id = trackId
+  const r = await fetch(`https://itunes.apple.com/lookup?id=${id}&country=nz`)
+  const t = (await r.json()).results[0]
+  if (id !== trackId) return
+  if (!t) throw new Error('missing track')
+  track = t
   audio.src = track.previewUrl
   $('badge').href = track.trackViewUrl
   render()
@@ -41,7 +48,7 @@ function render() {
   $('unlocked').textContent = `${u} second${u > 1 ? 's' : ''} unlocked`
   const next = STEPS[state.guesses.length + 1]
   $('skip').textContent = next ? `Skip (+${next - STEPS[state.guesses.length]}s)` : 'Give up'
-  if (state.done) showEnd()
+  if (state.done && track) showEnd()
 }
 
 function stop() { audio.pause(); cancelAnimationFrame(raf); $('playIcon').setAttribute('d', 'M8 5v14l11-7z'); $('play').setAttribute('aria-label', 'Play clip') }
@@ -67,6 +74,7 @@ function play() {
 
 function finish(won) {
   state.done = true; state.won = won; save()
+  if (PRACTICE) { stop(); render(); if (won) { audio.currentTime = 0; audio.play().catch(() => {}) } return }
   stats.played++
   if (won) {
     stats.wins++; stats.dist[state.guesses.length - 1]++
@@ -102,6 +110,7 @@ function countdown() {
 
 function showEnd() {
   $('game').hidden = true
+  $('newSong').hidden = !PRACTICE
   const e = $('end'); e.hidden = false
   const big = (track.artworkUrl100 || '').replace('100x100', '600x600')
   e.innerHTML = `<p class="verdict ${state.won ? 'win' : 'lose'}">${state.won ? `You got it in ${state.guesses.length}!` : "Not today. Here's the song."}</p>
@@ -110,13 +119,13 @@ function showEnd() {
   <a class="btn apple" href="${track.trackViewUrl}" target="_blank" rel="noopener">Listen on Apple Music</a></div>
   <p class="sq" aria-label="Your result">${squares()}</p>
   <button id="share" class="btn primary wide">Share result</button>
-  ${statsHtml()}
-  <p class="next">Next song in <b id="cd">--:--:--</b></p>`
+  ${PRACTICE ? '<p class="next">Practice round. Stats are not saved.</p>' : `${statsHtml()}
+  <p class="next">Next song in <b id="cd">--:--:--</b></p>`}`
   $('share').onclick = async () => {
-    const txt = `Heardle Clone #${dayNum + 1}\n🔊${squares()}\n${location.href}`
+    const txt = `Heardle Clone ${PRACTICE ? 'practice' : '#' + (dayNum + 1)}\n🔊${squares()}\n${location.href}`
     try { if (navigator.share && matchMedia('(pointer:coarse)').matches) await navigator.share({ text: txt }); else { await navigator.clipboard.writeText(txt); $('share').textContent = 'Copied to clipboard' } } catch {}
   }
-  countdown(); setInterval(countdown, 1000)
+  if (!PRACTICE) { countdown(); clearInterval(window.cdT); window.cdT = setInterval(countdown, 1000) }
 }
 
 // autocomplete
@@ -174,5 +183,22 @@ $('helpBtn').onclick = () => $('help').showModal()
 $('statsBtn').onclick = () => { $('statsBody').innerHTML = statsHtml(); $('statsD').showModal() }
 document.querySelectorAll('dialog').forEach(d => d.onclick = e => { if (e.target === d) d.close() })
 if (!localStorage.getItem('hc-seen')) { localStorage.setItem('hc-seen', '1'); $('help').showModal() }
-render()
-load().catch(() => say("Could not load today's song. Try again later."))
+function newSong() {
+  stop()
+  const others = TRACKS.filter(id => id !== trackId)
+  trackId = others[Math.floor(Math.random() * others.length)]
+  state = fresh(); track = null
+  $('end').hidden = true; $('end').innerHTML = ''; $('game').hidden = false
+  ;[...seg.children].forEach(el => { el.firstChild.style.width = '0' }); $('cur').textContent = '0:00'
+  render(); load().then(() => say('New song loaded')).catch(() => say('Could not load the song. Try again.'))
+}
+if (PRACTICE) {
+  document.body.classList.add('practice')
+  $('mode').hidden = false
+  $('newSong').hidden = false
+  $('newSong').onclick = newSong
+  newSong()
+} else {
+  render()
+  load().catch(() => say("Could not load today's song. Try again later."))
+}
